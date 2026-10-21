@@ -19,8 +19,10 @@ private:
 	std::vector<struct pollfd> pollFds;
 
 public:
-	// Server(int port, const std::string &password);
+	Server(int port, const std::string &password);
 	~Server();
+
+	void init();
 	// int getListeningFd() const;
 	// int getPort() const;
 	// const std::string &getPassword() const;
