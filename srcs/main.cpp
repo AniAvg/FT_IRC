@@ -36,14 +36,5 @@ int	main(int argc, char **argv)
 		std::cerr << "Error: " << e.what() << std::endl;
 		return 1;
 	}
-	// int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-
-	// if (server_fd == -1)
-	// {
-	// 	std::cerr << "Error creating socket: " << std::strerror(errno) << std::endl;
-	// 	return 1;
-	// }
-
-	// close(server_fd);
 	return 0;
 }
