@@ -16,6 +16,7 @@ private:
 
 public:
 	// Client();
+	Client(int fd);
 	// explicit Client(int fd);
 	// int getFd() const;
 	// const std::string &getNickname() const;

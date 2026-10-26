@@ -19,7 +19,7 @@ void Server::init()
 
 	// configure socket
 	int yes = 1;
-	if (setsocket(listeningFd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
+	if (setsockopt(listeningFd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
 	{
 		int error = errno;
 		close(listeningFd);
@@ -28,7 +28,7 @@ void Server::init()
 	}
 
 	//make socket non blocking
-	if (fcnl(listeningFd, F_SETFL, O_NONBLOCK) == -1)
+	if (fcntl(listeningFd, F_SETFL, O_NONBLOCK) == -1)
 	{
 		int error = errno;
 		close(listeningFd);
@@ -63,4 +63,102 @@ void Server::init()
 	}
 
 	std::cout << "Server is listening on port " << port << std::endl;
+}
+
+
+
+// getter functions
+int Server::getListeningFd() const
+{
+	return listeningFd;
+}
+
+int Server::getPort() const
+{
+	return port;
+}
+
+// setter
+void Server::setListeningFd(int fd)
+{
+	this->listeningFd = fd;
+}
+
+
+void Server::run()
+{
+	struct pollfd serverPoll;
+
+	serverPoll.fd = listeningFd;
+	serverPoll.events = POLLIN;
+	serverPoll.revents = 0;
+
+	pollFds.push_back(serverPoll);
+
+	while (true)
+	{
+		int result = poll(pollFds.data(), pollFds.size(), -1);
+
+		if (result == -1)
+		{
+			if (errno == EINTR)
+				continue;
+
+			throw std::runtime_error(std::string("poll: ") + std::strerror(errno));
+		}
+
+		for (size_t i = 0; i < pollFds.size(); ++i)
+		{
+			int fd = pollFds[i].fd;
+			short events = pollFds[i].revents;
+
+			if (events == 0)
+				continue;
+
+			if (fd == listeningFd)
+			{
+				if (events & POLLIN)
+					acceptClient();
+			}
+			else if (events & (POLLHUP | POLLERR | POLLNVAL))
+			{
+				close(fd);
+				clients.erase(fd);
+				pollFds.erase(pollFds.begin() + i);
+				--i;
+			}
+		}
+	}
+}
+
+
+void Server::acceptClient()
+{
+	int clientFd = accept(listeningFd, NULL, NULL);
+	if (clientFd == -1)
+	{
+		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+			return ;
+		throw std::runtime_error(std::string("accept: ") + std::strerror(errno));
+	}
+
+	if (fcntl(clientFd, F_SETFL, O_NONBLOCK) == -1)
+	{
+		int error = errno;
+		close(clientFd);
+		throw std::runtime_error(std::string("fcntl client: ") + std::strerror(error));
+	}
+
+	clients.insert(std::make_pair(clientFd, Client(clientFd)));
+
+	struct pollfd clientPoll;
+
+	clientPoll.fd = clientFd;
+	clientPoll.events = 0;
+	clientPoll.revents = 0;
+
+	pollFds.push_back(clientPoll);
+
+	std::cout << "New client connected. FD: " << clientFd << std::endl;
+
 }
