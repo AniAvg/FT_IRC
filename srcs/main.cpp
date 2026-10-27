@@ -1,16 +1,11 @@
 #include "Server.hpp"
 
-#include <iostream>
-#include <sys/socket.h>
-#include <cerrno>
-#include <cstring>
-#include <unistd.h>
 
 int	main(int argc, char **argv)
 {
 	if (argc != 3)
 	{
-		std::cerr << "Usage: ./ircserv <port <password>" << std::endl;
+		std::cerr << "Usage: ./ircserv <port> <password>" << std::endl;
 		return 1;
 	}
 
@@ -30,6 +25,7 @@ int	main(int argc, char **argv)
 	{
 		Server server(static_cast<int>(port), argv[2]);
 		server.init();
+		server.run();
 	}
 	catch (const std::exception &e)
 	{

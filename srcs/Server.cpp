@@ -1,6 +1,6 @@
 #include "Server.hpp"
 
-Server::Server(int port, const std::string& password)
+Server::Server(int port, const std::string& password) : listeningFd(-1), port(port), password(password)
 {}
 
 Server::~Server()
@@ -13,7 +13,7 @@ Server::~Server()
 void Server::init()
 {
 	//create socket
-	listeningFd = sockect(AF_INET, SOCK_STREAM, 0);
+	listeningFd = socket(AF_INET, SOCK_STREAM, 0);
 	if (listeningFd == -1)
 		throw std::runtime_error(std::string("socket: ") + std::strerror(errno));
 
@@ -97,7 +97,7 @@ void Server::run()
 
 	while (true)
 	{
-		int result = poll(pollFds.data(), pollFds.size(), -1);
+		int result = poll(&pollFds[0], pollFds.size(), -1);
 
 		if (result == -1)
 		{

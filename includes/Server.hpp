@@ -1,13 +1,18 @@
 #pragma once
 
 #include <iostream>
-
 #include <poll.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <cerrno>
+#include <cstring>
+#include <cstdlib>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
 #include <map>
 #include <string>
 #include <vector>
-#include <unistd.h>
-#include <fcntl.h>
 
 #include "Channel.hpp"
 #include "Client.hpp"
@@ -29,7 +34,7 @@ public:
 	int getListeningFd() const;
 	int getPort() const;
 	void setListeningFd(int fd);
-	
+
 	void init();
 	void run();
 	void acceptClient();
