@@ -7,7 +7,7 @@
 #include <cerrno>
 #include <cstring>
 #include <cstdlib>
-#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 
 #include <map>
