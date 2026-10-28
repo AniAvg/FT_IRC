@@ -154,11 +154,77 @@ void Server::acceptClient()
 	struct pollfd clientPoll;
 
 	clientPoll.fd = clientFd;
-	clientPoll.events = 0;
+	clientPoll.events = POLLIN;
 	clientPoll.revents = 0;
 
 	pollFds.push_back(clientPoll);
 
 	std::cout << "New client connected. FD: " << clientFd << std::endl;
 
+}
+
+
+
+void Server::handleClient(int fd)
+{
+	char buffer[512];
+
+	// read the bytes currently available from this clinent
+	ssize_t bytesReceived = recv(fd, buffer, sizeof(buffer), 0);
+
+	if (bytesReceived > 0)
+	{
+		std::map<int, Client>::iterator it = clients.find(fd);
+		if (it == clients.end())
+			return ;
+
+		it->second.appendToInputBuffer(std::string(buffer, static_cast<std::size_t>(bytesReceived)));
+
+		std::string& input= const_cast<std::string &>(it->second.getInputBuffer());
+
+		std::string::size_type end;
+		while ((end = input.find("\r\n")) != std::string::npos)
+		{
+			std::string message = input.substr(0, end);
+
+			std::cout << "Received from FD " << fd << ": " << message << std::endl;
+
+			input.erase(0, end + 2);
+		}
+	}
+	else if (bytesReceived == 0)
+	{
+		disconnectClient(fd);
+	}
+	else
+	{
+		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+			return ;
+
+		std::cerr << "recv error on FD " << fd << ": " << std::strerror(errno) << std::endl;
+
+		disconnectClient(fd);
+	}
+}
+
+void Server::disconnectClient(int fd)
+{
+	std::map<int, Client>::iterator clientIt = clients.find(fd);
+
+	if (clientIt == clients.end())
+		return ;
+
+	close(fd);
+	clients.erase(clientIt);
+
+	for (std::vector<struct pollfd>::iterator it = pollFds.begin(); it != pollFds.end(); ++it)
+	{
+		if (it->fd == fd)
+		{
+			pollFds.erase(it);
+			break ;
+		}
+	}
+
+	std::cout << "Client disconnected. FD: " << fd << std::endl;
 }

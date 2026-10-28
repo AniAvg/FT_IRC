@@ -39,6 +39,9 @@ public:
 	void run();
 	void acceptClient();
 
+	void handleClient(int fd);
+	void disconnectClient(int fd);
+
 	// const std::string &getPassword() const;
 	// std::map<int, Client> &getClients();
 	// const std::map<int, Client> &getClients() const;

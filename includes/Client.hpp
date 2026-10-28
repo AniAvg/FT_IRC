@@ -17,6 +17,11 @@ private:
 public:
 	// Client();
 	Client(int fd);
+
+	const std::string &getInputBuffer() const;
+	void appendToInputBuffer(const std::string &data);
+	void removeFromInputBuffer(std::size_t length);
+
 	// explicit Client(int fd);
 	// int getFd() const;
 	// const std::string &getNickname() const;
@@ -28,10 +33,7 @@ public:
 	// void setUsername(const std::string &value);
 	// void setPasswordAuthenticated(bool value);
 	// void setConnected(bool value);
-	// std::string &getInputBuffer();
 	// const std::string &getOutputBuffer() const;
-	// void appendInput(const std::string &data);
 	// void queueMessage(const std::string &message);
-	// void removeSentOutput(std::size_t length);
 	// bool hasPendingOutput() const;
 };
