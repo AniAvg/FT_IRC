@@ -180,16 +180,18 @@ void Server::handleClient(int fd)
 
 		it->second.appendToInputBuffer(std::string(buffer, static_cast<std::size_t>(bytesReceived)));
 
-		std::string& input= const_cast<std::string &>(it->second.getInputBuffer());
+		// std::string& input= const_cast<std::string &>(it->second.getInputBuffer());
 
-		std::string::size_type end;
-		while ((end = input.find("\r\n")) != std::string::npos)
+		std::string message;
+		// std::string::size_type end;
+		// while ((end = input.find("\r\n")) != std::string::npos)
+		while (it->second.extractMessage(message))
 		{
-			std::string message = input.substr(0, end);
+			// std::string message = input.substr(0, end);
 
 			std::cout << "Received from FD " << fd << ": " << message << std::endl;
 
-			input.erase(0, end + 2);
+			// input.erase(0, end + 2);
 		}
 	}
 	else if (bytesReceived == 0)
