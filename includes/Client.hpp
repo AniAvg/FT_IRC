@@ -20,7 +20,7 @@ public:
 
 	const std::string &getInputBuffer() const;
 	void appendToInputBuffer(const std::string &data);
-	void removeFromInputBuffer(std::size_t length);
+	void removeFromInputBuffer(std::size_t length);// not using
 
 	bool extractMessage(std::string &message);
 	// explicit Client(int fd);

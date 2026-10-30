@@ -87,13 +87,26 @@ void Server::setListeningFd(int fd)
 
 void Server::run()
 {
-	struct pollfd serverPoll;
+	bool serverRegistered = false;
+	for (std::size_t i = 0; i < pollFds.size(); i++)
+	{
+		if (pollFds[i].fd == listeningFd)
+		{
+			serverRegistered = true;
+			break ;
+		}
+	}
 
-	serverPoll.fd = listeningFd;
-	serverPoll.events = POLLIN;
-	serverPoll.revents = 0;
+	if (!serverRegistered)
+	{
+		struct pollfd serverPoll;
 
-	pollFds.push_back(serverPoll);
+		serverPoll.fd = listeningFd;
+		serverPoll.events = POLLIN;
+		serverPoll.revents = 0;
+
+		pollFds.push_back(serverPoll);
+	}
 
 	while (true)
 	{
@@ -113,20 +126,19 @@ void Server::run()
 			short events = pollFds[i].revents;
 
 			if (events == 0)
-				continue;
+				continue ;
 
 			if (fd == listeningFd)
 			{
 				if (events & POLLIN)
 					acceptClient();
+				continue ;
 			}
-			else if (events & (POLLHUP | POLLERR | POLLNVAL))
-			{
-				close(fd);
-				clients.erase(fd);
-				pollFds.erase(pollFds.begin() + i);
-				--i;
-			}
+
+			if (events & POLLIN)
+				handleClient(fd);
+			if (events & (POLLHUP | POLLERR | POLLNVAL))
+				disconnectClient(fd);
 		}
 	}
 }
