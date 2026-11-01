@@ -24,7 +24,7 @@ void Server::init()
 		int error = errno;
 		close(listeningFd);
 		listeningFd = -1;
-		throw std::runtime_error(std::string("setsockopt: ") + std::strerror(errno));
+		throw std::runtime_error(std::string("setsockopt: ") + std::strerror(error));
 	}
 
 	//make socket non blocking
@@ -115,15 +115,15 @@ void Server::run()
 		if (result == -1)
 		{
 			if (errno == EINTR)
-				continue;
+				continue ;
 
 			throw std::runtime_error(std::string("poll: ") + std::strerror(errno));
 		}
 
-		for (size_t i = 0; i < pollFds.size(); ++i)
+		for (std::size_t i = pollFds.size(); i > 0; --i)
 		{
-			int fd = pollFds[i].fd;
-			short events = pollFds[i].revents;
+			int fd = pollFds[i - 1].fd;
+			short events = pollFds[i - 1].revents;
 
 			if (events == 0)
 				continue ;
