@@ -3,8 +3,8 @@ NAME = ircserv
 SRCS = main.cpp \
 		Server.cpp \
 		Client.cpp \
-		Channel.cpp \
-		CommandHandler.cpp
+# 		Channel.cpp \
+# 		CommandHandler.cpp
 
 SRC_DIR = srcs
 OBJ_DIR = objs
