@@ -20,17 +20,21 @@ public:
 
 	void appendToInputBuffer(const std::string &data);
 	bool extractMessage(std::string &message);
-	
+
+	bool isRegistered() const;
+
+	const std::string &getNickname() const;
+	const std::string &getUsername() const;
+
+	bool isPasswordAuthenticated() const;
+
+	void setNickname(const std::string &nickname);
+	void setUsername(const std::string &username);
+	void setPasswordAuthenticated(bool value);
+
 	// explicit Client(int fd);
 	// int getFd() const;
-	// const std::string &getNickname() const;
-	// const std::string &getUsername() const;
-	// bool isPasswordAuthenticated() const;
 	// bool hasRegistrationInfo() const;
-	// bool isConnected() const;
-	// void setNickname(const std::string &value);
-	// void setUsername(const std::string &value);
-	// void setPasswordAuthenticated(bool value);
 	// void setConnected(bool value);
 	// const std::string &getOutputBuffer() const;
 	// void queueMessage(const std::string &message);
