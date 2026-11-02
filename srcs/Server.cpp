@@ -199,11 +199,7 @@ void Server::handleClient(int fd)
 		// while ((end = input.find("\r\n")) != std::string::npos)
 		while (it->second.extractMessage(message))
 		{
-			// std::string message = input.substr(0, end);
-
-			std::cout << "Received from FD " << fd << ": " << message << std::endl;
-
-			// input.erase(0, end + 2);
+			handleMessage(fd, message);
 		}
 	}
 	else if (bytesReceived == 0)
@@ -241,4 +237,52 @@ void Server::disconnectClient(int fd)
 	}
 
 	std::cout << "Client disconnected. FD: " << fd << std::endl;
+}
+
+
+void Server::handleMessage(int fd, const std::string& message)
+{
+	std::string command;
+	std::vector<std::string> params;
+	std::string::size_type pos = 0;
+
+	while  (pos < message.size() && message[pos] == ' ')
+		++pos;
+
+	std::string::size_type start = pos;
+
+	while (pos < message.size() && message[pos] != ' ')
+		++pos;
+
+	command = message.substr(start, pos - start);
+
+	for (std::string::size_type i = 0; i < command.size(); ++i)
+		command[i] = static_cast<char>(std::toupper(static_cast<unsigned char>(command[i])));
+
+	while (pos < message.size())
+	{
+		while (pos < message.size() && message[pos] == ' ')
+			++pos;
+		if (pos >= message.size())
+			break ;
+
+		if (message[pos] == ':')
+		{
+			params.push_back(message.substr(pos + 1));
+			break ;
+		}
+
+		start = pos;
+		while (pos < message.size() && message[pos] != ' ')
+			++pos;
+
+		params.push_back(message.substr(start, pos - start));
+	}
+
+	std::cout << "Command from FD " << fd << ": " << command << std::endl;
+
+	for (std::size_t i = 0; i < params.size(); ++i)
+	{
+		std::cout << "Parameter " << i + 1 << ": " << params[i] << std::endl;
+	}
 }

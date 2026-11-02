@@ -7,6 +7,7 @@
 #include <cerrno>
 #include <cstring>
 #include <cstdlib>
+#include <cctype>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <stdexcept>
@@ -42,6 +43,8 @@ public:
 
 	void handleClient(int fd);
 	void disconnectClient(int fd);
+
+	void handleMessage(int fd, const std::string& message);
 
 	// const std::string &getPassword() const;
 	// std::map<int, Client> &getClients();
