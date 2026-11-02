@@ -240,6 +240,35 @@ void Server::disconnectClient(int fd)
 }
 
 
+void Server::handlePass(int fd, const std::vector<std::string>& params)
+{
+	std::map<int, Client>::iterator it = clients.find(fd);
+	if (it == clients.end());
+		return ;
+
+	if (params.size() != 1)
+	{
+		std::cout << "PASS: missing or invalid parameter count" << std::endl;
+		return ;
+	}
+
+	if (it->second.isRegistered())
+	{
+		std::cout << "PASS: client is already registered" << std::endl;
+		return ;
+	}
+
+	if (params[0] == password)
+	{
+		it->second.setPasswordAuthenticated(true);
+		std::cout << "FD " << fd << " authenticated successfully" << std::endl;
+	}
+	else
+		std::cout << "FD " << fd << " provided an incorrect password" << std::endl;
+}
+
+
+
 void Server::handleMessage(int fd, const std::string& message)
 {
 	std::string command;
@@ -279,7 +308,11 @@ void Server::handleMessage(int fd, const std::string& message)
 		params.push_back(message.substr(start, pos - start));
 	}
 
-	std::cout << "Command from FD " << fd << ": " << command << std::endl;
+	// std::cout << "Command from FD " << fd << ": " << command << std::endl;
+	if (command == "PASS")
+		handlePass(fd, params);
+	else
+		std::cout << "Unknown or not implemented command: " << command << std::endl;
 
 	for (std::size_t i = 0; i < params.size(); ++i)
 	{

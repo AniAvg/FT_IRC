@@ -45,6 +45,7 @@ public:
 	void disconnectClient(int fd);
 
 	void handleMessage(int fd, const std::string& message);
+	void handlePass(int fd, const std::vector<std::string>& params);
 
 	// const std::string &getPassword() const;
 	// std::map<int, Client> &getClients();

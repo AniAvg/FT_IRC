@@ -12,9 +12,9 @@ private:
 	std::set<int> invitedClients;
 	std::string topic;
 	std::string key;
-	bool inviteOnly;
-	bool topicRestricted;
-	int userLimit;
+	// bool inviteOnly;
+	// bool topicRestricted;
+	// int userLimit;
 
 public:
 	// Channel();
