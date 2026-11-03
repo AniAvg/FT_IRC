@@ -243,7 +243,7 @@ void Server::disconnectClient(int fd)
 void Server::handlePass(int fd, const std::vector<std::string>& params)
 {
 	std::map<int, Client>::iterator it = clients.find(fd);
-	if (it == clients.end());
+	if (it == clients.end())
 		return ;
 
 	if (params.size() != 1)
