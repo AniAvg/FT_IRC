@@ -240,6 +240,9 @@ void Server::disconnectClient(int fd)
 }
 
 
+
+
+
 void Server::handlePass(int fd, const std::vector<std::string>& params)
 {
 	std::map<int, Client>::iterator it = clients.find(fd);
@@ -265,6 +268,83 @@ void Server::handlePass(int fd, const std::vector<std::string>& params)
 	}
 	else
 		std::cout << "FD " << fd << " provided an incorrect password" << std::endl;
+}
+
+
+void Server::handleNick(int fd, const std::vector<std::string>& params)
+{
+	std::map<int, Client>::iterator clientIt = clients.find(fd);
+	if (clientIt == clients.end())
+		return ;
+
+	if (params.size() != 1 || params[0].empty())
+	{
+		std::cout << "NICK: missing or invalid parameter" << std::endl;
+		return ;
+	}
+
+	const std::string& nickname = params[0];
+	if (nickname.size() > 9 || !std::isalpha(static_cast<unsigned char>(nickname[0])))
+	{
+		std::cout << "NICK: invalid nickname" << std::endl;
+		return ;
+	}
+
+	for (std::size_t i = 0; i < nickname.size(); ++i)
+	{
+		unsigned char c = static_cast<unsigned char>(nickname[i]);
+
+		if (!std::isalnum(c) && c != '-' && c != '_')
+		{
+			std::cout << "NICK: invalid nickname" << std::endl;
+			return ;
+		}
+	}
+	for (std::map<int, Client>::iterator it = clients.begin();
+		it != clients.end(); ++it)
+	{
+		if (it->first != fd && it->second.getNickname() == nickname)
+		{
+			std::cout << "NICK: nickname is already in use" << std::endl;
+			return;
+		}
+	}
+
+	clientIt->second.setNickname(nickname);
+
+	std::cout << "FD " << fd << " changed nickname to " << nickname << std::endl;
+}
+
+
+
+void Server::handleUser(int fd, const std::vector<std::string>& params)
+{
+	std::map<int, Client>::iterator it = clients.find(fd);
+	if (it == clients.end())
+		return ;
+
+	if (params.size() != 4)
+	{
+		std::cout << "USER: invalid parameter count" << std::endl;
+		return ;
+	}
+	if (it->second.isRegistered())
+	{
+		std::cout << "USER: client is already registered" << std::endl;
+		return ;
+	}
+	if (params[0].empty())
+	{
+		std::cout << "USER: username cannot be empty" << std::endl;
+		return ;
+	}
+
+	it->second.setUsername(params[0]);
+
+	std::cout << "FD " << fd << " set username to " << params[0] << std::endl;
+
+	if (it->second.isRegistered())
+		std::cout << "FD " << fd << " is now fully registered!" << std::endl;
 }
 
 
@@ -308,11 +388,16 @@ void Server::handleMessage(int fd, const std::string& message)
 		params.push_back(message.substr(start, pos - start));
 	}
 
-	// std::cout << "Command from FD " << fd << ": " << command << std::endl;
+
 	if (command == "PASS")
 		handlePass(fd, params);
+	else if (command == "NICK")
+		handleNick(fd, params);
+	else if (command == "USER")
+		handleUser(fd, params);
 	else
 		std::cout << "Unknown or not implemented command: " << command << std::endl;
+
 
 	for (std::size_t i = 0; i < params.size(); ++i)
 	{

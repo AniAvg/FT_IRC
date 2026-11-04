@@ -1,6 +1,7 @@
 #include "Client.hpp"
 
-Client::Client(int fd) : fd(fd), passwordAuthenticated(false), connected(true)
+// Client::Client(int fd) : fd(fd), passwordAuthenticated(false), connected(true)
+Client::Client(int fd) : passwordAuthenticated(false)
 {
 	(void)fd;
 }

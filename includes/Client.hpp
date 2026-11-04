@@ -6,13 +6,13 @@
 class Client
 {
 private:
-	int fd;
+	// int fd;
 	std::string nickname;
 	std::string username;
 	bool passwordAuthenticated;
 	std::string inputBuffer;
 	std::string outputBuffer;
-	bool connected;
+	// bool connected;
 
 public:
 	// Client();
@@ -32,11 +32,4 @@ public:
 	void setUsername(const std::string &username);
 	void setPasswordAuthenticated(bool value);
 
-	// explicit Client(int fd);
-	// int getFd() const;
-	// bool hasRegistrationInfo() const;
-	// void setConnected(bool value);
-	// const std::string &getOutputBuffer() const;
-	// void queueMessage(const std::string &message);
-	// bool hasPendingOutput() const;
 };

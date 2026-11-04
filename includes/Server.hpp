@@ -46,16 +46,7 @@ public:
 
 	void handleMessage(int fd, const std::string& message);
 	void handlePass(int fd, const std::vector<std::string>& params);
+	void handleNick(int fd, const std::vector<std::string>& params);
+	void handleUser(int fd, const std::vector<std::string>& params);
 
-	// const std::string &getPassword() const;
-	// std::map<int, Client> &getClients();
-	// const std::map<int, Client> &getClients() const;
-	// std::map<std::string, Channel> &getChannels();
-	// const std::map<std::string, Channel> &getChannels() const;
-	// std::vector<struct pollfd> &getPollFds();
-	// const std::vector<struct pollfd> &getPollFds() const;
-	// void addClient(const Client &client);
-	// void removeClient(int fd);
-	// void addChannel(const Channel &channel);
-	// void removeChannel(const std::string &channelName);
 };
