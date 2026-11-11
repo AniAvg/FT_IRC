@@ -1,10 +1,9 @@
 #include "Client.hpp"
 
 // Client::Client(int fd) : fd(fd), passwordAuthenticated(false), connected(true)
-Client::Client(int fd) : passwordAuthenticated(false)
-{
-	(void)fd;
-}
+
+Client::Client() : passwordAuthenticated(false), registrationCompleted(false)
+{}
 
 
 
@@ -51,6 +50,21 @@ bool Client::isPasswordAuthenticated() const
 	return passwordAuthenticated;
 }
 
+
+bool Client::isRegistrationCompleted() const
+{
+	return registrationCompleted;
+}
+
+void Client::setRegistrationCompleted(bool value)
+{
+	registrationCompleted = value;
+}
+
+
+
+
+
 void Client::setNickname(const std::string &nickname)
 {
 	this->nickname = nickname;
@@ -66,6 +80,28 @@ void Client::setPasswordAuthenticated(bool value)
 	this->passwordAuthenticated = value;
 }
 
+
+
+void Client::appendToOutputBuffer(const std::string &data)
+{
+	outputBuffer += data;
+}
+const std::string& Client::getOutputBuffer() const
+{
+	return outputBuffer;
+}
+
+
+
+void Client::removeFromOutputBuffer(std::size_t length)
+{
+	outputBuffer.erase(0, length);
+}
+
+bool Client::hasPendingOutput() const
+{
+	return !outputBuffer.empty();
+}
 
 
 

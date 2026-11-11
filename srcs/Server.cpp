@@ -17,6 +17,9 @@ void Server::init()
 	if (listeningFd == -1)
 		throw std::runtime_error(std::string("socket: ") + std::strerror(errno));
 
+	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+		throw std::runtime_error("Signal: failed to ignore SIGPIPE");
+
 	// configure socket
 	int yes = 1;
 	if (setsockopt(listeningFd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
@@ -130,6 +133,8 @@ void Server::run()
 
 			if (fd == listeningFd)
 			{
+				if (events & (POLLERR | POLLHUP | POLLNVAL))
+					throw std::runtime_error("poll: listening socket error");
 				if (events & POLLIN)
 					acceptClient();
 				continue ;
@@ -137,6 +142,8 @@ void Server::run()
 
 			if (events & POLLIN)
 				handleClient(fd);
+			if (events & POLLOUT)
+				sendMessage(fd);
 			if (events & (POLLHUP | POLLERR | POLLNVAL))
 				disconnectClient(fd);
 		}
@@ -161,7 +168,7 @@ void Server::acceptClient()
 		throw std::runtime_error(std::string("fcntl client: ") + std::strerror(error));
 	}
 
-	clients.insert(std::make_pair(clientFd, Client(clientFd)));
+	clients.insert(std::make_pair(clientFd, Client()));
 
 	struct pollfd clientPoll;
 
@@ -173,6 +180,28 @@ void Server::acceptClient()
 
 	std::cout << "New client connected. FD: " << clientFd << std::endl;
 
+}
+
+
+
+void Server::checkRegistration(int fd)
+{
+	std::map<int, Client>::iterator it = clients.find(fd);
+
+	if (it == clients.end())
+		return ;
+
+	if (it->second.isRegistered() &&
+		!it->second.isRegistrationCompleted())
+	{
+		std::string nickname = it->second.getNickname();
+
+		queueMessage(fd, ":ircserv 001 " + nickname + " :Welcome to the IRC server\r\n");
+
+		it->second.setRegistrationCompleted(true);
+
+		std::cout << "FD " << fd << " is now fully registered!" << std::endl;
+	}
 }
 
 
@@ -257,7 +286,7 @@ void Server::handlePass(int fd, const std::vector<std::string>& params)
 
 	if (it->second.isRegistered())
 	{
-		std::cout << "PASS: client is already registered" << std::endl;
+		std::cout << "PASS: client is already authenticated" << std::endl;
 		return ;
 	}
 
@@ -267,8 +296,33 @@ void Server::handlePass(int fd, const std::vector<std::string>& params)
 		std::cout << "FD " << fd << " authenticated successfully" << std::endl;
 	}
 	else
+	{
+		queueMessage(fd, ":ircserv 464 * :Password incorrect\r\n");
+
 		std::cout << "FD " << fd << " provided an incorrect password" << std::endl;
+	}
 }
+
+
+/// dup nickname checking
+static bool equalsIgnoreCase(const std::string& a, const std::string& b)
+{
+	if (a.size() != b.size())
+		return false;
+
+	for (std::size_t i = 0; i < a.size(); ++i)
+	{
+		unsigned char ca = static_cast<unsigned char>(a[i]);
+		unsigned char cb = static_cast<unsigned char>(b[i]);
+
+		if (std::tolower(ca) != std::tolower(cb))
+			return false;
+	}
+
+	return true;
+}
+
+
 
 
 void Server::handleNick(int fd, const std::vector<std::string>& params)
@@ -303,7 +357,8 @@ void Server::handleNick(int fd, const std::vector<std::string>& params)
 	for (std::map<int, Client>::iterator it = clients.begin();
 		it != clients.end(); ++it)
 	{
-		if (it->first != fd && it->second.getNickname() == nickname)
+		if (it->first != fd && !it->second.getNickname().empty()
+			&& equalsIgnoreCase(it->second.getNickname(), nickname))
 		{
 			std::cout << "NICK: nickname is already in use" << std::endl;
 			return;
@@ -311,6 +366,7 @@ void Server::handleNick(int fd, const std::vector<std::string>& params)
 	}
 
 	clientIt->second.setNickname(nickname);
+	checkRegistration(fd);
 
 	std::cout << "FD " << fd << " changed nickname to " << nickname << std::endl;
 }
@@ -340,6 +396,7 @@ void Server::handleUser(int fd, const std::vector<std::string>& params)
 	}
 
 	it->second.setUsername(params[0]);
+	checkRegistration(fd);
 
 	std::cout << "FD " << fd << " set username to " << params[0] << std::endl;
 
@@ -403,4 +460,67 @@ void Server::handleMessage(int fd, const std::string& message)
 	{
 		std::cout << "Parameter " << i + 1 << ": " << params[i] << std::endl;
 	}
+}
+
+
+
+void Server::queueMessage(int fd, const std::string& message)
+{
+	std::map<int, Client>::iterator it = clients.find(fd);
+	if (it == clients.end())
+		return ;
+
+	it->second.appendToOutputBuffer(message);
+	for (std::size_t i = 0; i < pollFds.size(); ++i)
+	{
+		if (pollFds[i].fd == fd)
+		{
+			pollFds[i].events |= POLLOUT;
+			break ;
+		}
+	}
+}
+
+
+void Server::sendMessage(int fd)
+{
+	std::map<int, Client>::iterator it = clients.find(fd);
+	if (it == clients.end())
+		return ;
+
+	const std::string& buffer = it->second.getOutputBuffer();
+	if (buffer.empty())
+		return ;
+
+	ssize_t bytesSent = send(fd, buffer.c_str(), buffer.size(), 0);
+	if (bytesSent > 0)
+		it->second.removeFromOutputBuffer(static_cast<std::size_t>(bytesSent));
+	else if (bytesSent == 0)
+	{
+		disconnectClient(fd);
+		return ;
+	}
+	else
+	{
+		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+			return ;
+
+		std::cerr << "send error on FD " << fd << ": "
+				<< std::strerror(errno) << std::endl;
+		disconnectClient(fd);
+		return ;
+	}
+
+	if (!it->second.hasPendingOutput())
+	{
+		for (std::size_t i = 0; i < pollFds.size(); ++i)
+		{
+			if (pollFds[i].fd == fd)
+			{
+				pollFds[i].events &= ~POLLOUT;
+				break ;
+			}
+		}
+	}
+
 }

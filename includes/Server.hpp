@@ -8,6 +8,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cctype>
+#include <csignal>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <stdexcept>
@@ -41,6 +42,8 @@ public:
 	void run();
 	void acceptClient();
 
+	void checkRegistration(int fd);
+
 	void handleClient(int fd);
 	void disconnectClient(int fd);
 
@@ -49,4 +52,6 @@ public:
 	void handleNick(int fd, const std::vector<std::string>& params);
 	void handleUser(int fd, const std::vector<std::string>& params);
 
+	void queueMessage(int fd, const std::string& message);
+	void sendMessage(int fd);
 };
