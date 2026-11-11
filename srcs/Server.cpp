@@ -524,3 +524,58 @@ void Server::sendMessage(int fd)
 	}
 
 }
+
+
+
+void Server::handleJoin(int fd, const std::vector<std::string>& params)
+{
+	std::map<int, Client>::iterator clientIt = clients.find(fd);
+
+	if (clientIt == clients.end())
+		return;
+
+	if (!clientIt->second.isRegistered())
+	{
+		queueMessage(fd, ":ircserv 451 * :You have not registered\r\n");
+		return;
+	}
+
+	// Check parameters
+	if (params.empty())
+	{
+		queueMessage(fd, ":ircserv 461 " + clientIt->second.getNickname()
+			+ " JOIN :Not enough parameters\r\n");
+		return;
+	}
+
+	// Get channel name
+	std::string channelName = params[0];
+
+	// Validate channel name
+	if (channelName.empty() || channelName[0] != '#')
+	{
+		queueMessage(fd, ":ircserv 403 " + channelName + " :No such channel\r\n");
+		return;
+	}
+
+	// Find or create channel
+	std::map<std::string, Channel>::iterator channelIt = channels.find(channelName);
+
+	if (channelIt == channels.end())
+	{
+		Channel newChannel(channelName);
+		channels.insert(std::make_pair(channelName, newChannel));
+
+		channelIt = channels.find(channelName);
+	}
+
+	// add client to channel
+	channelIt->second.addMember(fd);
+
+	// send JOIN confirmation
+	queueMessage(fd, ":" + clientIt->second.getNickname() + "!"
+		+ clientIt->second.getUsername() + "@localhost JOIN " + channelName + "\r\n");
+
+	std::cout << clientIt->second.getNickname() << " joined "
+		<< channelName << std::endl;
+}

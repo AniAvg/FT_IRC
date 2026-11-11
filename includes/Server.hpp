@@ -54,4 +54,6 @@ public:
 
 	void queueMessage(int fd, const std::string& message);
 	void sendMessage(int fd);
+
+	void handleJoin(int fd, const std::vector<std::string>& params);
 };
