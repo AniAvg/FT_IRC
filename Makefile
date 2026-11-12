@@ -3,7 +3,7 @@ NAME = ircserv
 SRCS = main.cpp \
 		Server.cpp \
 		Client.cpp \
-# 		Channel.cpp \
+		Channel.cpp \
 # 		CommandHandler.cpp
 
 SRC_DIR = srcs

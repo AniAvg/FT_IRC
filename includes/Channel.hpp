@@ -14,6 +14,7 @@ public:
 	Channel(const std::string& name);
 
 	const std::string& getName() const;
+	const std::set<int>& getMembers() const;
 
 	void addMember(int fd);
 	bool hasMemeber(int fd) const;

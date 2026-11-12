@@ -452,6 +452,8 @@ void Server::handleMessage(int fd, const std::string& message)
 		handleNick(fd, params);
 	else if (command == "USER")
 		handleUser(fd, params);
+	else if (command == "JOIN")
+		handleJoin(fd, params);
 	else
 		std::cout << "Unknown or not implemented command: " << command << std::endl;
 
@@ -569,12 +571,31 @@ void Server::handleJoin(int fd, const std::vector<std::string>& params)
 		channelIt = channels.find(channelName);
 	}
 
+	// Check if client is already a member
+	const std::set<int>& members = channelIt->second.getMembers();
+
+	if (members.find(fd) != members.end())
+	{
+		queueMessage(fd, ":ircserv 443 " + clientIt->second.getNickname()
+			+ " " + channelName + " :is already on channel\r\n");
+		return ;
+	}
+
 	// add client to channel
 	channelIt->second.addMember(fd);
 
 	// send JOIN confirmation
-	queueMessage(fd, ":" + clientIt->second.getNickname() + "!"
-		+ clientIt->second.getUsername() + "@localhost JOIN " + channelName + "\r\n");
+	std::string message = ":" + clientIt->second.getNickname() + "!"
+		+ clientIt->second.getUsername() + "@localhost JOIN " + channelName + "\r\n";
+
+	const std::set<int>& channelMembers = channelIt->second.getMembers();
+
+	for (std::set<int>::const_iterator it = channelMembers.begin();
+		it != channelMembers.end(); ++it)
+	{
+		queueMessage(*it, message);
+	}
+
 
 	std::cout << clientIt->second.getNickname() << " joined "
 		<< channelName << std::endl;

@@ -12,6 +12,14 @@ const std::string& Channel::getName() const
 	return name;
 }
 
+const std::set<int>& Channel::getMembers() const
+{
+	return members;
+}
+
+
+
+
 void Channel::addMember(int fd)
 {
 	members.insert(fd);
