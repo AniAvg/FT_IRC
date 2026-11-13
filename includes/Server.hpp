@@ -51,9 +51,20 @@ public:
 	void handlePass(int fd, const std::vector<std::string>& params);
 	void handleNick(int fd, const std::vector<std::string>& params);
 	void handleUser(int fd, const std::vector<std::string>& params);
+	void handlePrivmsg(int fd, const std::vector<std::string>& params);
+	void handleKick(int fd, const std::vector<std::string>& params);
+	void handleInvite(int fd, const std::vector<std::string>& params);
+	void handleTopic(int fd, const std::vector<std::string>& params);
+	void handleMode(int fd, const std::vector<std::string>& params);
+	void handlePart(int fd, const std::vector<std::string>& params);
+	void handleQuit(int fd, const std::vector<std::string>& params);
 
 	void queueMessage(int fd, const std::string& message);
 	void sendMessage(int fd);
 
 	void handleJoin(int fd, const std::vector<std::string>& params);
+	void sendToChannel(const Channel& channel, int excludedFd,
+		const std::string& message);
+	bool getChannel(const std::string& name, Channel*& channel);
+	bool isValidChannelName(const std::string& name) const;
 };

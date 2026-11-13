@@ -237,9 +237,6 @@ void Server::handleClient(int fd)
 	}
 	else
 	{
-		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
-			return ;
-
 		std::cerr << "recv error on FD " << fd << ": " << std::strerror(errno) << std::endl;
 
 		disconnectClient(fd);
@@ -252,6 +249,19 @@ void Server::disconnectClient(int fd)
 
 	if (clientIt == clients.end())
 		return ;
+
+	for (std::map<std::string, Channel>::iterator channelIt = channels.begin();
+		channelIt != channels.end(); )
+	{
+		channelIt->second.removeMember(fd);
+		if (channelIt->second.getMembers().empty())
+		{
+			std::map<std::string, Channel>::iterator emptyChannel = channelIt++;
+			channels.erase(emptyChannel);
+		}
+		else
+			++channelIt;
+	}
 
 	close(fd);
 	clients.erase(clientIt);
@@ -268,6 +278,36 @@ void Server::disconnectClient(int fd)
 	std::cout << "Client disconnected. FD: " << fd << std::endl;
 }
 
+bool Server::isValidChannelName(const std::string& name) const
+{
+	return !name.empty() && name[0] == '#' && name.size() > 1
+		&& name.find_first_of(" ,\007") == std::string::npos;
+}
+
+bool Server::getChannel(const std::string& name, Channel*& channel)
+{
+	std::map<std::string, Channel>::iterator it = channels.find(name);
+	if (it == channels.end())
+	{
+		channel = NULL;
+		return false;
+	}
+	channel = &it->second;
+	return true;
+}
+
+void Server::sendToChannel(const Channel& channel, int excludedFd,
+	const std::string& message)
+{
+	const std::set<int>& members = channel.getMembers();
+	for (std::set<int>::const_iterator it = members.begin();
+		it != members.end(); ++it)
+	{
+		if (*it != excludedFd)
+			queueMessage(*it, message);
+	}
+}
+
 
 
 
@@ -280,12 +320,15 @@ void Server::handlePass(int fd, const std::vector<std::string>& params)
 
 	if (params.size() != 1)
 	{
+		queueMessage(fd, ":ircserv 461 * PASS :Not enough parameters\r\n");
 		std::cout << "PASS: missing or invalid parameter count" << std::endl;
 		return ;
 	}
 
 	if (it->second.isRegistered())
 	{
+		queueMessage(fd, ":ircserv 462 " + it->second.getNickname()
+			+ " :You may not reregister\r\n");
 		std::cout << "PASS: client is already authenticated" << std::endl;
 		return ;
 	}
@@ -333,6 +376,7 @@ void Server::handleNick(int fd, const std::vector<std::string>& params)
 
 	if (params.size() != 1 || params[0].empty())
 	{
+		queueMessage(fd, ":ircserv 431 * :No nickname given\r\n");
 		std::cout << "NICK: missing or invalid parameter" << std::endl;
 		return ;
 	}
@@ -340,6 +384,7 @@ void Server::handleNick(int fd, const std::vector<std::string>& params)
 	const std::string& nickname = params[0];
 	if (nickname.size() > 9 || !std::isalpha(static_cast<unsigned char>(nickname[0])))
 	{
+		queueMessage(fd, ":ircserv 432 * " + nickname + " :Erroneous nickname\r\n");
 		std::cout << "NICK: invalid nickname" << std::endl;
 		return ;
 	}
@@ -350,6 +395,7 @@ void Server::handleNick(int fd, const std::vector<std::string>& params)
 
 		if (!std::isalnum(c) && c != '-' && c != '_')
 		{
+			queueMessage(fd, ":ircserv 432 * " + nickname + " :Erroneous nickname\r\n");
 			std::cout << "NICK: invalid nickname" << std::endl;
 			return ;
 		}
@@ -360,6 +406,7 @@ void Server::handleNick(int fd, const std::vector<std::string>& params)
 		if (it->first != fd && !it->second.getNickname().empty()
 			&& equalsIgnoreCase(it->second.getNickname(), nickname))
 		{
+			queueMessage(fd, ":ircserv 433 * " + nickname + " :Nickname is already in use\r\n");
 			std::cout << "NICK: nickname is already in use" << std::endl;
 			return;
 		}
@@ -381,6 +428,7 @@ void Server::handleUser(int fd, const std::vector<std::string>& params)
 
 	if (params.size() != 4)
 	{
+		queueMessage(fd, ":ircserv 461 * USER :Not enough parameters\r\n");
 		std::cout << "USER: invalid parameter count" << std::endl;
 		return ;
 	}
@@ -391,6 +439,7 @@ void Server::handleUser(int fd, const std::vector<std::string>& params)
 	}
 	if (params[0].empty())
 	{
+		queueMessage(fd, ":ircserv 461 * USER :Not enough parameters\r\n");
 		std::cout << "USER: username cannot be empty" << std::endl;
 		return ;
 	}
@@ -402,6 +451,179 @@ void Server::handleUser(int fd, const std::vector<std::string>& params)
 
 	if (it->second.isRegistered())
 		std::cout << "FD " << fd << " is now fully registered!" << std::endl;
+}
+
+void Server::handlePrivmsg(int fd, const std::vector<std::string>& params)
+{
+	std::map<int, Client>::iterator sender = clients.find(fd);
+	if (sender == clients.end() || params.size() < 2)
+	{
+		queueMessage(fd, ":ircserv 461 * PRIVMSG :Not enough parameters\r\n");
+		return;
+	}
+	std::string prefix = ":" + sender->second.getNickname() + "!"
+		+ sender->second.getUsername() + "@localhost PRIVMSG " + params[0]
+		+ " :" + params[1] + "\r\n";
+	if (params[0][0] == '#')
+	{
+		Channel* channel;
+		if (!getChannel(params[0], channel) || !channel->hasMember(fd))
+		{
+			queueMessage(fd, ":ircserv 442 " + sender->second.getNickname()
+				+ " " + params[0] + " :You're not on that channel\r\n");
+			return;
+		}
+		sendToChannel(*channel, fd, prefix);
+		return;
+	}
+	for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it)
+	{
+		if (equalsIgnoreCase(it->second.getNickname(), params[0]))
+		{
+			queueMessage(it->first, prefix);
+			return;
+		}
+	}
+	queueMessage(fd, ":ircserv 401 " + params[0] + " :No such nick\r\n");
+}
+
+void Server::handleKick(int fd, const std::vector<std::string>& params)
+{
+	std::map<int, Client>::iterator actor = clients.find(fd);
+	if (actor == clients.end() || params.size() < 2)
+	{
+		queueMessage(fd, ":ircserv 461 * KICK :Not enough parameters\r\n");
+		return;
+	}
+	Channel* channel;
+	if (!getChannel(params[0], channel))
+		return;
+	if (!channel->isOperator(fd))
+	{
+		queueMessage(fd, ":ircserv 482 " + params[0] + " :You're not channel operator\r\n");
+		return;
+	}
+	int targetFd = -1;
+	for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it)
+		if (equalsIgnoreCase(it->second.getNickname(), params[1])) targetFd = it->first;
+	if (targetFd == -1 || !channel->hasMember(targetFd))
+		return;
+	std::string reason = params.size() > 2 ? params[2] : params[1];
+	std::string message = ":" + actor->second.getNickname() + "!"
+		+ actor->second.getUsername() + "@localhost KICK " + params[0] + " "
+		+ params[1] + " :" + reason + "\r\n";
+	const std::set<int> members = channel->getMembers();
+	for (std::set<int>::const_iterator it = members.begin(); it != members.end(); ++it)
+		queueMessage(*it, message);
+	channel->removeMember(targetFd);
+}
+
+void Server::handleInvite(int fd, const std::vector<std::string>& params)
+{
+	std::map<int, Client>::iterator actor = clients.find(fd);
+	if (actor == clients.end() || params.size() < 2)
+		return;
+	Channel* channel;
+	if (!getChannel(params[1], channel) || !channel->isOperator(fd))
+		return;
+	for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it)
+	{
+		if (equalsIgnoreCase(it->second.getNickname(), params[0]))
+		{
+			channel->addInvite(it->first);
+			queueMessage(it->first, ":" + actor->second.getNickname() + " INVITE "
+				+ params[0] + " " + params[1] + "\r\n");
+			return;
+		}
+	}
+}
+
+void Server::handleTopic(int fd, const std::vector<std::string>& params)
+{
+	std::map<int, Client>::iterator actor = clients.find(fd);
+	if (actor == clients.end() || params.empty()) return;
+	Channel* channel;
+	if (!getChannel(params[0], channel) || !channel->hasMember(fd)) return;
+	if (params.size() == 1)
+	{
+		queueMessage(fd, ":ircserv 332 " + actor->second.getNickname() + " "
+			+ params[0] + " :" + channel->getTopic() + "\r\n");
+		return;
+	}
+	if (channel->isTopicOperatorsOnly() && !channel->isOperator(fd)) return;
+	channel->setTopic(params[1]);
+	sendToChannel(*channel, -1, ":" + actor->second.getNickname() + " TOPIC "
+		+ params[0] + " :" + params[1] + "\r\n");
+}
+
+void Server::handleMode(int fd, const std::vector<std::string>& params)
+{
+	std::map<int, Client>::iterator actor = clients.find(fd);
+	if (actor == clients.end() || params.empty()) return;
+	Channel* channel;
+	if (!getChannel(params[0], channel)) return;
+	if (params.size() == 1)
+	{
+		std::string modes = "+";
+		if (channel->isInviteOnly()) modes += "i";
+		if (channel->isTopicOperatorsOnly()) modes += "t";
+		if (!channel->getKey().empty()) modes += "k";
+		if (channel->getUserLimit() > 0) modes += "l";
+		queueMessage(fd, ":ircserv 324 " + actor->second.getNickname() + " "
+			+ params[0] + " " + modes + "\r\n");
+		return;
+	}
+	if (!channel->isOperator(fd))
+	{
+		queueMessage(fd, ":ircserv 482 " + params[0] + " :You're not channel operator\r\n");
+		return;
+	}
+	bool adding = true;
+	std::size_t argument = 2;
+	for (std::size_t i = 0; i < params[1].size(); ++i)
+	{
+		if (params[1][i] == '+') { adding = true; continue; }
+		if (params[1][i] == '-') { adding = false; continue; }
+		if (params[1][i] == 'i') channel->setInviteOnly(adding);
+		else if (params[1][i] == 't') channel->setTopicOperatorsOnly(adding);
+		else if (params[1][i] == 'k' && argument < params.size())
+		{
+			if (adding) channel->setKey(params[argument]); else channel->removeKey();
+			if (adding) ++argument;
+		}
+		else if (params[1][i] == 'l')
+		{
+			if (adding && argument < params.size()) channel->setUserLimit(std::atoi(params[argument++] .c_str()));
+			else if (!adding) channel->setUserLimit(0);
+		}
+		else if (params[1][i] == 'o' && argument < params.size())
+		{
+			int targetFd = -1;
+			for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it)
+				if (equalsIgnoreCase(it->second.getNickname(), params[argument])) targetFd = it->first;
+			if (targetFd != -1) { if (adding) channel->addOperator(targetFd); else channel->removeOperator(targetFd); }
+			++argument;
+		}
+	}
+	}
+
+void Server::handlePart(int fd, const std::vector<std::string>& params)
+{
+	if (params.empty()) return;
+	Channel* channel;
+	if (!getChannel(params[0], channel) || !channel->hasMember(fd)) return;
+	std::map<int, Client>::iterator it = clients.find(fd);
+	std::string message = ":" + it->second.getNickname() + "!" + it->second.getUsername()
+		+ "@localhost PART " + params[0] + "\r\n";
+	sendToChannel(*channel, -1, message);
+	channel->removeMember(fd);
+	if (channel->getMembers().empty()) channels.erase(params[0]);
+}
+
+void Server::handleQuit(int fd, const std::vector<std::string>& params)
+{
+	(void)params;
+	disconnectClient(fd);
 }
 
 
@@ -454,6 +676,20 @@ void Server::handleMessage(int fd, const std::string& message)
 		handleUser(fd, params);
 	else if (command == "JOIN")
 		handleJoin(fd, params);
+	else if (command == "PRIVMSG")
+		handlePrivmsg(fd, params);
+	else if (command == "KICK")
+		handleKick(fd, params);
+	else if (command == "INVITE")
+		handleInvite(fd, params);
+	else if (command == "TOPIC")
+		handleTopic(fd, params);
+	else if (command == "MODE")
+		handleMode(fd, params);
+	else if (command == "PART")
+		handlePart(fd, params);
+	else if (command == "QUIT")
+		handleQuit(fd, params);
 	else
 		std::cout << "Unknown or not implemented command: " << command << std::endl;
 
@@ -504,9 +740,6 @@ void Server::sendMessage(int fd)
 	}
 	else
 	{
-		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
-			return ;
-
 		std::cerr << "send error on FD " << fd << ": "
 				<< std::strerror(errno) << std::endl;
 		disconnectClient(fd);
@@ -554,7 +787,7 @@ void Server::handleJoin(int fd, const std::vector<std::string>& params)
 	std::string channelName = params[0];
 
 	// Validate channel name
-	if (channelName.empty() || channelName[0] != '#')
+	if (!isValidChannelName(channelName))
 	{
 		queueMessage(fd, ":ircserv 403 " + channelName + " :No such channel\r\n");
 		return;
@@ -571,6 +804,29 @@ void Server::handleJoin(int fd, const std::vector<std::string>& params)
 		channelIt = channels.find(channelName);
 	}
 
+	if (channelIt->second.isInviteOnly() && !channelIt->second.isInvited(fd)
+		&& !channelIt->second.getMembers().empty())
+	{
+		queueMessage(fd, ":ircserv 473 " + clientIt->second.getNickname() + " "
+			+ channelName + " :Cannot join channel (+i)\r\n");
+		return;
+	}
+	if (!channelIt->second.getKey().empty()
+		&& (params.size() < 2 || params[1] != channelIt->second.getKey()))
+	{
+		queueMessage(fd, ":ircserv 475 " + clientIt->second.getNickname() + " "
+			+ channelName + " :Cannot join channel (+k)\r\n");
+		return;
+	}
+	if (channelIt->second.getUserLimit() > 0
+		&& static_cast<int>(channelIt->second.getMembers().size())
+		>= channelIt->second.getUserLimit())
+	{
+		queueMessage(fd, ":ircserv 471 " + clientIt->second.getNickname() + " "
+			+ channelName + " :Cannot join channel (+l)\r\n");
+		return;
+	}
+
 	// Check if client is already a member
 	const std::set<int>& members = channelIt->second.getMembers();
 
@@ -583,6 +839,9 @@ void Server::handleJoin(int fd, const std::vector<std::string>& params)
 
 	// add client to channel
 	channelIt->second.addMember(fd);
+	if (channelIt->second.getMembers().size() == 1)
+		channelIt->second.addOperator(fd);
+	channelIt->second.removeInvite(fd);
 
 	// send JOIN confirmation
 	std::string message = ":" + clientIt->second.getNickname() + "!"
